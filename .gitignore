@@ -1,0 +1,13 @@
+*.fna
+*.faa
+*.fasta
+*.gff
+*.zip
+*.tar.gz
+*.bam
+*.vcf*
+prokka_*/
+tatouscan_db/
+plasmidfinder_db/
+localDB/
+data/

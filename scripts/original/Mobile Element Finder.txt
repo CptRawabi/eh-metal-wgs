@@ -1,0 +1,19 @@
+#Mobile element finder via wsl
+
+conda create -n mge_env python=3.9 -y
+conda activate mge_env
+pip install MobileElementFinder
+
+conda install -c bioconda blast -y
+
+mkdir -p MGE_Outputs
+
+for fasta in *.fna; do
+    [ -e "$fasta" ] || continue
+    strain=$(basename "$fasta" .fna)
+    echo "Running MobileElementFinder on $strain..."
+    
+    mkdir -p "MGE_Outputs/$strain"
+    mefinder find --contig "$fasta" "MGE_Outputs/$strain/${strain}"
+done
+

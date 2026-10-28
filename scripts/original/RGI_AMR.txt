@@ -1,0 +1,101 @@
+#RGI
+
+#This is what I used, forgot to make env: conda install -c bioconda -c conda-forge rgi diamond -y
+
+#Make dedicated env instead, will not mess up other tool versions like Prokka, MLST
+
+conda create -n rgi_env -c bioconda -c conda-forge rgi diamond -y
+conda activate rgi_env
+
+#Download and load database
+
+rgi auto_load
+
+#Run this once to replace any spaces in your .faa filenames with underscores (When DIAMOND runs under the hood, it breaks command-line arguments when a filename contains a space)
+
+for f in *\ *.faa; do [ -f "$f" ] && mv "$f" "${f// /_}"; done
+
+
+#This script handles everything in isolated Linux /tmp directories so DIAMOND never sees spaces or Windows paths
+
+# 1. Create clean isolated directories
+mkdir -p /tmp/rgi_in /tmp/rgi_out
+
+# 2. Copy your clean .faa files to /tmp
+cp "/mnt/d/Desktop/Script_Check/RGI_AMR/"*.faa /tmp/rgi_in/
+
+# 3. Run RGI loop
+cd /tmp/rgi_out
+for f in /tmp/rgi_in/*.faa; do
+  sample=$(basename "$f" .faa)
+  echo "===> Processing strain: ${sample}"
+  rgi main \
+    --input_sequence "$f" \
+    --output_file "rgi_${sample}" \
+    --input_type protein \
+    --alignment_tool DIAMOND \
+    -n 4 \
+    --clean
+done
+
+# 4. Move finished .txt and .json files to your  results folder
+mv /tmp/rgi_out/rgi_* "/mnt/d/Desktop/Script_Check/RGI_AMR/"
+
+# 5. Clean up temporary directories
+rm -rf /tmp/rgi_in /tmp/rgi_out
+
+#This script reads each rgi_*.txt file, extracts the relevant columns (Strain, ORF_ID, Best_Hit_ARO, Cut_Off, Drug Class, Resistance Mechanism, ARO Category/Gene Family, % Identity, Alignment Coverage), consolidates them into a master CSV, and also outputs a pivot-table matrix of Strain vs. Drug Class
+
+python3 -c '
+import glob
+import os
+import pandas as pd
+
+results_dir = "/mnt/d/Desktop/Script_Check/RGI_AMR"
+txt_files = glob.glob(os.path.join(results_dir, "rgi_*.txt"))
+
+all_hits = []
+
+for file_path in txt_files:
+    # Extract strain name from filename (e.g., rgi_20712.txt -> 20712)
+    filename = os.path.basename(file_path)
+    strain = filename.replace("rgi_", "").replace(".txt", "")
+    
+    try:
+        df = pd.read_csv(file_path, sep="\t")
+        if not df.empty and "Best_Hit_ARO" in df.columns:
+            df["Strain"] = strain
+            all_hits.append(df)
+    except Exception as e:
+        print(f"Error reading {filename}: {e}")
+
+if all_hits:
+    master_df = pd.concat(all_hits, ignore_index=True)
+    
+    # Save the detailed master list
+    master_csv_path = os.path.join(results_dir, "rgi_master_summary.csv")
+    master_df.to_csv(master_csv_path, index=False)
+    print(f" Saved Master Summary CSV: {master_csv_path} ({len(master_df)} total hits)")
+    
+    # Generate a ready-to-plot Matrix: Strains x Drug Class (counts)
+    if "Drug Class" in master_df.columns:
+        # Drug Class can contain multiple classes separated by semicolons
+        expanded_rows = []
+        for idx, row in master_df.iterrows():
+            drug_classes = str(row["Drug Class"]).split("; ")
+            for dc in drug_classes:
+                dc_clean = dc.strip()
+                if dc_clean and dc_clean != "nan":
+                    expanded_rows.append({"Strain": row["Strain"], "Drug_Class": dc_clean, "ARO": row["Best_Hit_ARO"]})
+        
+        exp_df = pd.DataFrame(expanded_rows)
+        
+        # Pivot table: counts of unique ARO genes per strain & drug class
+        matrix_df = exp_df.pivot_table(index="Strain", columns="Drug_Class", aggfunc="size", fill_value=0)
+        matrix_csv_path = os.path.join(results_dir, "rgi_drug_class_matrix.csv")
+        matrix_df.to_csv(matrix_csv_path)
+        print(f" Saved Heatmap Matrix CSV: {matrix_csv_path} ({matrix_df.shape[0]} strains x {matrix_df.shape[1]} drug classes)")
+
+else:
+    print("No valid rgi_*.txt files found with hit data.")
+'

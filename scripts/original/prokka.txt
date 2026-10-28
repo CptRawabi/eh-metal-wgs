@@ -1,0 +1,15 @@
+#prokka
+
+#first create an environment to resolve old prokka version issues, this will use v1.15.6
+
+mamba create -n prokka_env -c conda-forge -c bioconda prokka=1.15.6 -y
+conda activate prokka_env
+
+#Double check, should give you prokka 1.15.6, /root/miniforge3/envs/prokka_env/bin/prokka
+
+prokka --version
+which prokka
+
+#Then run the execution
+
+for f in *.fna; do sample=$(basename "$f" .fna); prokka --outdir "prokka_${sample}" --prefix "$sample" --genus Enterobacter --cpus 4 "$f"; done

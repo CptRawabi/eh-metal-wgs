@@ -1,0 +1,153 @@
+#TAtouscan
+
+conda create -n ta_env python=3.12 hmmer -y
+conda activate ta_env
+pip install TAtouScan
+
+#Download database
+
+wget https://zenodo.org/records/20059258/files/tatouscan_db.tar.gz
+tar -xvf tatouscan_db.tar.gz
+
+#Run this first (patch_db.sh) - This patches the database to remove housekeeping background noise to accurately obtain TA systems only.
+
+#!/bin/bash
+
+echo "Analyzing database for missing entries..."
+
+# 1. Extract all model names from the HMM file
+grep "^NAME " tatouscan_db/ta.hmm | awk '{print $2}' | sort > all_hmms.txt
+
+# 2. Extract all known IDs from the info TSV file
+cut -f1 tatouscan_db/hmm_info.tsv | sort > existing_hmms.txt
+
+# 3. Compare them to find which ones are missing from the TSV
+comm -23 all_hmms.txt existing_hmms.txt > missing_hmms.txt
+
+MISSING_COUNT=$(wc -l < missing_hmms.txt)
+echo "Found $MISSING_COUNT missing entries. Patching hmm_info.tsv..."
+
+# 4. Automatically append dummy data for all missing entries
+while read -r name; do
+    # If the ID starts with 'T.', label it a Toxin. If 'A.', Antitoxin.
+    if [[ "$name" == T.* ]]; then
+        echo -e "${name}\tUnknown_Family\tToxin" >> tatouscan_db/hmm_info.tsv
+    elif [[ "$name" == A.* ]]; then
+        echo -e "${name}\tUnknown_Family\tAntitoxin" >> tatouscan_db/hmm_info.tsv
+    else
+        echo -e "${name}\tUnknown_Family\tUnknown" >> tatouscan_db/hmm_info.tsv
+    fi
+done < missing_hmms.txt
+
+# Clean up the temporary text files
+rm all_hmms.txt existing_hmms.txt missing_hmms.txt
+
+echo "Database successfully patched!"
+
+
+
+#Runs TAtouscan, IMPORTANT - make sure the .faa and .gff files are in a dedicated "genomes" folder, --detailed flag included 
+
+mkdir -p results
+
+# Loop over all .faa files in the genomes directory
+for faa in genomes/*.faa; do
+    # Get base strain name (e.g., strain_01 from genomes/strain_01.faa)
+    strain=$(basename "$faa" .faa)
+    gff="genomes/${strain}.gff"
+
+    echo "========================================"
+    echo "Processing Strain: $strain"
+    echo "========================================"
+
+    if [ -f "$gff" ]; then
+        tatouscan \
+            --faa "$faa" \
+            --gff "$gff" \
+            --db tatouscan_db \
+            --outdir "results/${strain}" \
+            --detailed
+    else
+        echo "Warning: GFF file for $strain not found! Skipping..."
+    fi
+done
+
+echo "Scanning complete for all strains!"
+
+
+
+
+#removes the "hypothetical protein" noise and filters by E-value (< 0.005) (python3 aggregate_results.py)
+
+import pandas as pd
+import glob
+import os
+
+def combine_tsvs(file_pattern):
+    file_list = glob.glob(file_pattern)
+    df_list = []
+    
+    for file_path in file_list:
+        strain_name = os.path.basename(os.path.dirname(file_path))
+        try:
+            df = pd.read_csv(file_path, sep='\t')
+            if not df.empty:
+                df.insert(0, 'Strain', strain_name)
+                df_list.append(df)
+        except Exception as e:
+            print(f"Error reading {file_path}: {e}")
+            
+    if df_list:
+        return pd.concat(df_list, ignore_index=True)
+    return pd.DataFrame()
+
+print("Aggregating TA system pairs...")
+pairs_df = combine_tsvs('results/*/tatouscan_results_pairs.tsv')
+
+print("Aggregating all individual TA genes...")
+genes_df = combine_tsvs('results/*/tatouscan_results.tsv')
+
+heatmap_toxins = pd.DataFrame()
+heatmap_antitoxins = pd.DataFrame()
+
+if not genes_df.empty:
+    print("Filtering genomic noise and generating separated Heatmap Matrices...")
+    
+    evalue_col = 'TASmania_hmm_evalue'
+    hmm_col = 'TASmania_hmm_description' # Human-readable product names
+    
+    # 1. Filter out background genomic context
+    df_filtered = genes_df.dropna(subset=['TASmania_hmm_name'])
+    
+    # 2. Filter by E-value threshold (< 0.005)
+    df_filtered = df_filtered.copy()
+    df_filtered[evalue_col] = pd.to_numeric(df_filtered[evalue_col], errors='coerce')
+    df_filtered = df_filtered[df_filtered[evalue_col] < 0.005]
+    
+    # 3. Split the dataframe into Toxins and Antitoxins
+    df_toxins = df_filtered[df_filtered['gene_type'].str.strip().str.lower() == 'toxin']
+    df_antitoxins = df_filtered[df_filtered['gene_type'].str.strip().str.lower() == 'antitoxin']
+    
+    # 4. Group by Family and Strain (Order swapped to put Strains on X-axis)
+    if not df_toxins.empty:
+        heatmap_toxins = df_toxins.groupby([hmm_col, 'Strain']).size().unstack(fill_value=0)
+    if not df_antitoxins.empty:
+        heatmap_antitoxins = df_antitoxins.groupby([hmm_col, 'Strain']).size().unstack(fill_value=0)
+
+output_file = 'Master_TA_Results.xlsx'
+print(f"Writing data to {output_file}...")
+
+with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
+    if not pairs_df.empty:
+        pairs_df.to_excel(writer, sheet_name='TA_Pairs', index=False)
+    
+    if not genes_df.empty:
+        genes_df.to_excel(writer, sheet_name='All_TA_Genes', index=False)
+        
+    if not heatmap_toxins.empty:
+        heatmap_toxins.reset_index().to_excel(writer, sheet_name='Heatmap_Toxins', index=False)
+        
+    if not heatmap_antitoxins.empty:
+        heatmap_antitoxins.reset_index().to_excel(writer, sheet_name='Heatmap_Antitoxins', index=False)
+
+print("Master Excel file created successfully!")

@@ -1,0 +1,24 @@
+#Bacmet
+
+cd /mnt/d/Desktop/Script_Check
+
+# Download experimentally validated database --> file named 'BacMet2_EXP_database.fasta' from the website
+
+# Make BLAST database (PROTEIN)
+
+makeblastdb -in BacMet2_EXP_database.fasta -dbtype prot -out bacmet_db
+
+#Run BLAST
+
+blastp \
+  -query all_strains_proteins.faa \
+  -db bacmet_db \
+  -evalue 1e-5 \
+  -max_hsps 1 \
+  -num_threads 4 \
+  -outfmt "6 qseqid sseqid pident length qlen slen qcovs evalue bitscore" \
+  -out bacmet_raw_results.tsv
+
+#To filter results in separate excel
+
+awk '$3 >= 80 && $7 >= 80' bacmet_raw_results.tsv > bacmet_filtered_80_80.tsv

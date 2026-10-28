@@ -1,0 +1,89 @@
+#Genomic data collection for Enterobacter strains
+
+conda activate eh_typing
+curl -o datasets 'https://ftp.ncbi.nlm.nih.gov/pub/datasets/command-line/v2/linux-amd64/datasets'
+chmod +x datasets
+
+# 1. Download metadata package (FASTA only)
+
+datasets download genome taxon "Enterobacter" --assembly-level complete,chromosome --dehydrated --filename enterobacter_complete.zip
+
+# 2. Unzip and rehydrate into dataset folder
+
+unzip enterobacter_complete.zip -d enterobacter_dataset
+datasets rehydrate --directory enterobacter_dataset/ --max-workers 16
+
+#Fetch Enterobacter genome into an organized TSV file: Accession | Organism | Isolation Source | All Attributes
+
+sudo apt install -y jq
+
+./datasets summary genome taxon "Enterobacter" --assembly-level complete,chromosome --as-json-lines | jq -r '[.accession, .organism.organism_name, (.assembly_info.biosample.isolation_source // "NA"), ([.assembly_info.biosample.attributes[]? | .name + ":" + .value] | join("; ") // "NA")] | @tsv' > enterobacter_metadata.tsv
+
+#Run MLST on all strains, this was used only to infer ST61 strains and not used in final results due some discrepancies in assigning "Cronobacter", --scheme was applied
+
+mlst --threads 4 --scheme ecloacae enterobacter_dataset/ncbi_dataset/data/*/*.fna > mlst_results.tsv
+
+
+
+
+#Downloads all chosen accessions, renames each FASTA file directly to its corresponding strain name inside a dedicated "fasta_files" folder
+
+# 1. Save mapped strain names and accessions to a temporary list
+
+cat << 'EOF' > strain_mapping.tsv
+HS-117	GCA_056725825.1
+C15117	GCA_003660125.1
+AUH-ENM30	GCA_009497055.1
+20712	GCA_003261215.1
+BC18	GCA_050274025.1
+BC37	GCA_050263205.1
+DSM_16691	GCA_001729725.1
+DSM_16687	GCA_001729705.1
+CM18-242-2	GCA_016767755.1
+CM18-216	GCA_016767735.1
+FUJ80016	GCA_044348845.1
+FUJ80021	GCA_044346935.1
+FUJ80059	GCA_044346485.1
+FUJ80070	GCA_044346335.1
+WYTS.MG41	GCA_027920365.1
+GC1.3	GCA_057669935.1
+JT.WLB1A	GCA_025244885.1
+VKH10	GCA_024218835.1
+FRM	GCA_003444755.1
+Pb204	GCA_003254805.1
+F2	GCA_009905155.1
+Naas_2022_1	GCA_031852185.1
+Eho-E1	GCA_022023895.1
+Eho-E2	GCA_015910205.1
+Eho-E3	GCA_015910345.1
+Eho-E4	GCA_015910325.1
+AI-3	GCA_052412295.1
+FDAARGOS_1433	GCA_019048245.1
+EOF
+
+# 2. Extract just the accession list for download
+cut -f2 strain_mapping.tsv > accessions.txt
+
+# 3. Download genomes from NCBI
+echo "Downloading 28 genomes..."
+/mnt/d/enterobacter_complete/datasets download genome accession --inputfile accessions.txt --filename ani_genomes.zip
+
+# 4. Extract raw genome files
+unzip -o ani_genomes.zip -d extracted_genomes/
+
+# 5. Map and copy FASTA files with their exact Strain Names
+
+mkdir -p fasta_files
+
+while IFS=$'\t' read -r strain acc; do
+    fna_file=$(ls extracted_genomes/ncbi_dataset/data/${acc}/*.fna 2>/dev/null)
+    if [ -f "$fna_file" ]; then
+        cp "$fna_file" "fasta_files/${strain}.fna"
+        echo "Saved: fasta_files/${strain}.fna"
+    else
+        echo "Warning: Genome for ${strain} (${acc}) not found!"
+    fi
+done < strain_mapping.tsv
+
+# 6. Clean up temporary working files
+rm -rf ani_genomes.zip extracted_genomes/ strain_mapping.tsv accessions.txt

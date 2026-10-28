@@ -1,0 +1,69 @@
+#plasmidfinder
+
+conda create -n plasmidfinder -c bioconda -c conda-forge plasmidfinder -y
+conda activate plasmidfinder
+
+
+#create the database (database v2.2.0)
+
+git clone https://git@bitbucket.org/genomicepidemiology/plasmidfinder_db.git
+cd plasmidfinder_db
+for f in *.fsa; do makeblastdb -in "$f" -dbtype nucl; done
+cd ..
+
+#run plasmidfinder
+
+for fasta in *.fna; do
+    strain=$(basename "$fasta" .fna)
+    echo "Processing strain: $strain..."
+    
+    # Create the specific output folder for this strain first
+    mkdir -p "PlasmidFinder_Outputs/$strain"
+    
+    plasmidfinder.py \
+        -i "$fasta" \
+        -o "PlasmidFinder_Outputs/$strain" \
+        -p "$(pwd)/plasmidfinder_db" \
+        -d enterobacteriales \
+        -l 0.6 \
+        -t 0.9
+done
+
+#python script to include coordinates and export all as tsv
+
+python3 -c '
+import json, glob, os
+
+def get_hits(d):
+    hits = []
+    if isinstance(d, dict):
+        if "plasmid" in d and "identity" in d:
+            plasmid = d.get("plasmid", "N/A")
+            identity = d.get("identity", "N/A")
+            coverage = d.get("coverage", "N/A")
+            contig = d.get("contig_name", d.get("hit_id", "N/A"))
+            positions = d.get("positions_in_contig", d.get("position_in_ref", "N/A"))
+            hits.append((plasmid, identity, coverage, contig, positions))
+        for k, v in d.items():
+            hits.extend(get_hits(v))
+    elif isinstance(d, list):
+        for item in d:
+            hits.extend(get_hits(item))
+    return hits
+
+with open("plasmid_summary_with_coordinates.tsv", "w") as out:
+    out.write("Strain\tPlasmid\tIdentity\tCoverage\tContig\tContig_Positions\n")
+    for json_file in sorted(glob.glob("PlasmidFinder_Outputs/*/data.json")):
+        strain = os.path.basename(os.path.dirname(json_file))
+        try:
+            with open(json_file) as f:
+                data = json.load(f)
+            hits = list(set(get_hits(data)))
+            if hits:
+                for p, i, c, contig, pos in hits:
+                    out.write(f"{strain}\t{p}\t{i}\t{c}\t{contig}\t{pos}\n")
+            else:
+                out.write(f"{strain}\tNone\tN/A\tN/A\tN/A\tN/A\n")
+        except Exception as e:
+            out.write(f"{strain}\tError\tN/A\tN/A\tN/A\tN/A\n")
+'
