@@ -2,9 +2,7 @@
 
 ## Overview
 
-This project investigates the genomic characteristics of an environmental bacterial isolate, ZPb4, belonging to the species *Enterobacter hormaechei*.
-
-The study combines whole-genome sequencing (WGS), phenotypic characterization, antimicrobial and metal resistance profiling, along with comparative genomic analyses to explore potential genetic determinants associated with metal tolerance and antibiotic resistance. The broader context is environmental AMR and the One Health interface between environmental microorganisms and human-associated bacterial populations. Genomic similarities are interpreted in an environmental and comparative context, without assuming direct transmission or establishing clinical risk from genomic evidence alone.
+This project investigates the genomic characteristics of an environmental bacterial isolate, ZPb4, belonging to the species *Enterobacter hormaechei*. The study combines whole-genome sequencing (WGS), phenotypic characterization, antimicrobial and metal resistance profiling, along with comparative genomic analyses to explore potential genetic determinants associated with metal tolerance and antibiotic resistance.
 
 ## Research objectives
 
