@@ -114,7 +114,7 @@ Several decisions were made by hand and are not recorded in any script:
 
 ## Data availability
 
-Large sequencing files, intermediate files, and database resources are not stored in this repository. Public reference genomes are identified by NCBI accession number. 
+Large sequencing files, intermediate files, and database resources are not stored in this repository. Public reference genomes are identified by NCBI accession number. The ZPb4 accession number will be given once the manuscript has been published.
 
 ## Project status
 
