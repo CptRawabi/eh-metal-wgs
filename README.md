@@ -85,17 +85,17 @@ The scripts are archived exactly as they were run, so they contain machine-speci
 | Database | Source | Identifier |
 |---|---|---|
 | CARD | `rgi auto_load` inside `rgi_env` | v4.0.2. Checksums of the four FASTA index files: `card_database_v4.0.2.fasta` `500f594b42c6ac97fdbe17a2f788ffd8`; `card_database_v4.0.2_all.fasta` `aa8bb51771f095348d37c72b59b181e9`; `wildcard_database_v4.0.2.fasta` `e3a2d35e7cfb3e3a06a84e3972ca8a70`; `wildcard_database_v4.0.2_all.fasta` `3b126fe280ecc4cc5f8a845c6f970196` |
-| BacMet2 (experimentally confirmed) | BacMet website (http://bacmet.biomedicine.gu.se) | 753 sequences, downloaded 10 Jul 2026, md5 begins `9d53ffba`. **TODO:** full md5 |
-| PlasmidFinder database | `git clone` of `plasmidfinder_db` (Genomic Epidemiology, Bitbucket) | Commit `07648fdd…`, dated 27 Nov 2025. **TODO:** full commit hash |
-| TAtouScan database | Zenodo record 20059258 (`tatouscan_db.tar.gz`), then `patch_db.sh` | Folder fingerprint after patching: `9ec4cbfd62ef521ba1ddf0af5847ea6e` (md5 of the sorted per-file md5 list) |
-| MLST scheme | Bundled with mlst 2.35.0 (`ecloacae`) | Snapshot 17 Jun 2026, md5 begins `4ea718da`. **TODO:** full md5 |
+| BacMet2 (experimentally confirmed) | BacMet website (http://bacmet.biomedicine.gu.se) | 753 sequences, downloaded 10 Jul 2026, md5 begins `9d53ffbaf738428708a3121351101fe2 ` |
+| PlasmidFinder database | `git clone` of `plasmidfinder_db` (Genomic Epidemiology, Bitbucket) | Commit `07648fddc4c6cf0330c9fc041dd6f52b4a69f8d6`, dated 27 Nov 2025 |
+| TAtouScan database | Zenodo record 20059258 (`tatouscan_db.tar.gz`), then `patch_db.sh` | Folder fingerprint after patching: `9ec4cbfd62ef521ba1ddf0af5847ea6e`|
+| MLST scheme | Bundled with mlst 2.35.0 (`ecloacae`) | Snapshot 17 Jun 2026, md5 begins `4ea718da80bc68561483b8317c37e316`|
 | Reference genomes | NCBI, by accession | The 28 accessions are listed in `Genomic Data Collection.txt` |
 
 ## Manual and unscripted steps
 
 Several decisions were made by hand and are not recorded in any script:
 
-- **Strain selection.** All complete/chromosome-level *Enterobacter* assemblies were downloaded and typed by MLST to identify ST61. Strains relevant to metal tolerance and environmental origin were then selected manually in an Excel master sheet built from the metadata table. The 28 accessions in the script are the result of this selection. Of the 32 comparative genomes, 28 come from that list, and 4 (including 2 contig-level assemblies) were added manually. **TODO:** list the four accessions.
+- **Strain selection.** All complete/chromosome-level *Enterobacter* assemblies were downloaded and typed by MLST to identify ST61. Strains relevant to metal tolerance and environmental origin were then selected manually in an Excel master sheet built from the metadata table. The 28 accessions in the script are the result of this selection. Of the 32 comparative genomes, 28 come from that list, and 4 (including 2 contig-level assemblies) were added manually. 
 - **RGI summaries.** The Python summary block inside `RGI_AMR.txt` was not used for the reported results. The per-strain `rgi_*.txt` tables were concatenated and analysed in Excel.
 - **PlasmidFinder summaries.** The combined Excel table and the coordinate table were created outside the saved scripts.
 - **ZPb4.** The assembly of the study isolate is not downloaded by any script.
@@ -106,11 +106,9 @@ Several decisions were made by hand and are not recorded in any script:
 2. **Prokka.** The original run used Prokka 1.15.6. In the rebuilt environment, BLAST+ is 2.16.0 instead of 2.17.0 because the two versions could not be installed together with Prokka's Perl dependencies. Gene predictions come from Prodigal 2.6.3, which matches the original, and BLAST is expected to affect only gene product naming.
 3. **BacMet.** BLAST+ 2.17.0 is inferred from the Conda history (the run took place before the `base` environment was changed), not from a recorded command.
 4. **CARD.** Version 4.0.2 is taken from the original session's download. The database was reloaded on 25 Oct 2026 for verification. A verification re-run of RGI on regenerated proteins produced one extra hit in two strains and the discrepancy could not be verified as the database and tool versions were the same.
-5. **TAtouScan database.** The released database lacks metadata rows for some profiles, which made the tool fail. `patch_db.sh` adds the missing rows with family `Unknown_Family`, and toxin or antitoxin type is assigned from the profile name prefix. **TODO:** number of patched profiles.
+5. **TAtouScan database.** The released database lacks metadata rows for some profiles, which made the tool fail. `patch_db.sh` adds the missing rows with family `Unknown_Family`, and toxin or antitoxin type is assigned from the profile name prefix. 8 profiles were patched.
 6. **MLST.** The command-line MLST run was used only to find ST61 candidates. The sequence types reported in the manuscript come from the Galaxy Europe run.
 7. **Genome downloads.** NCBI queries return the database as it is on the day of the query, so a new run can return different genomes. The accession lists pin the dataset used.
-8. **R analysis.** The pan-genome curve was produced in R on Windows (micropan, `set.seed(42)`). **TODO:** add the script and `sessionInfo()` output.
-
 
 ## Data availability
 
@@ -122,4 +120,4 @@ This repository documents an ongoing research project. Workflow validation, vers
 
 ## Acknowledgements
 
-This work uses publicly available genomic resources and open-source bioinformatics software. The relevant tools, databases, and publications are cited in the accompanying manuscript.
+This work uses publicly available genomic resources and open-source bioinformatics software. The relevant tools, databases and publications are cited whereever applicable.
